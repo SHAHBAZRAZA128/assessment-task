@@ -1,49 +1,98 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import MemberModal from "../components/Modals/MemberModal";
-
-type AccessLevel = {
-  value: "stationary" | "manager" | "viewer" | "Deactivate";
-  label: string;
-  details: string;
-};
+import axios from "axios";
+import { AccessLevel, Member ,IsOpenMap } from "../types/types";
 
 const accessLevels: AccessLevel[] = [
   {
-    value: "stationary",
-    label: "Stationary",
+    value: "Signatory",
+    label: "Signatory",
     details:
       "Has no right to sign transactions. Can change company settings and can invite new members.",
   },
   {
-    value: "manager",
+    value: "Manager",
     label: "Manager",
     details:
       "Has the right to sign transactions. Can change company settings and can invite new members.",
   },
   {
-    value: "viewer",
+    value: "Viewer",
     label: "Viewer",
     details: "Has read-only access.",
   },
-  {
-    value: "Deactivate",
-    label: "Deactivate",
-    details: "",
-  },
 ];
 
-const Members = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const members = [
-    { name: "Daniel Fleming", email: "danielfleming@spacex.com" },
-    // Add more members as needed
-  ];
-  const [isOpen, setIsOpen] = useState(false);
-  const [accessLevel, setAccessLevel] = useState<AccessLevel>(accessLevels[0]);
 
-  const handleAccessLevelChange = (newAccessLevel: AccessLevel): void => {
-    setAccessLevel(newAccessLevel);
-    setIsOpen(false);
+const Members = () => {
+  const initialized = useRef(false);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isOpenMap, setIsOpenMap] = useState<IsOpenMap>({});
+  const [isSent, setIsSent] = useState(false);
+
+  const fetchMembers = () => {
+    axios
+      .get("http://localhost:8000/members/")
+      .then((response) => {
+        setMembers(response.data);
+      })
+      .catch((error) => {
+        console.error("Error fetching data", error);
+      });
+  };
+
+  useEffect(() => {
+    if (!initialized.current) {
+      initialized.current = true;
+      fetchMembers();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isSent) {
+      const timer = setTimeout(() => {
+        handleClose();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isSent]);
+
+  const handleAccessLevelChange = (
+    newAccessLevel: AccessLevel,
+    memberId: string
+  ) => {
+    // Close the dropdown for the specific member
+    setIsOpenMap((prevIsOpenMap) => ({
+      ...prevIsOpenMap,
+      [memberId]: false,
+    }));
+
+    axios
+      .patch(`http://localhost:8000/members/${memberId}`, {
+        accessLevel: newAccessLevel.value,
+      })
+      .then((response) => {
+        console.log("PATCH Request Success", response.data);
+
+        const updatedMembers = members.map((member) => {
+          if (member.id === memberId) {
+            return { ...member, accessLevel: newAccessLevel.value };
+          }
+          return member;
+        });
+        setMembers(updatedMembers);
+      })
+      .catch((error) => {
+        console.error("PATCH Request Error", error);
+      });
+  };
+
+  const toggleIsOpen = (memberId: string) => {
+    setIsOpenMap((prevIsOpenMap) => ({
+      ...prevIsOpenMap,
+      [memberId]: !prevIsOpenMap[memberId],
+    }));
   };
   const handleModalOpen = () => {
     setIsModalOpen(true);
@@ -52,7 +101,9 @@ const Members = () => {
   const handleModalClose = () => {
     setIsModalOpen(false);
   };
-
+  const handleClose = () => {
+    setIsSent(false);
+  };
   return (
     <div className="bg-white min-h-screen">
       <div className="bg-white p-8 rounded relative">
@@ -89,19 +140,21 @@ const Members = () => {
                 </tr>
               </thead>
               <tbody>
-                {members.map((member, index) => (
-                  <tr key={index}>
+                {members.map((member) => (
+                  <tr key={member.id}>
                     <td className="px-4 py-2 border-b border-gray-400">
                       <div className="flex items-center">
                         <div className="h-8 w-8 bg-blue-900 text-white flex justify-center items-center rounded-full mr-3">
-                          {member.name
+                          {member.username
                             .split(" ")
                             .map((n) => n[0])
                             .join("")
                             .substr(0, 2)}
                         </div>
                         <div>
-                          <p className="font-bold text-left">{member.name}</p>
+                          <p className="font-bold text-left">
+                            {member.username}
+                          </p>
                           <p>{member.email}</p>
                         </div>
                       </div>
@@ -112,13 +165,13 @@ const Members = () => {
                           <span className="rounded-md shadow-sm">
                             <button
                               type="button"
-                              className="flex justify-end  w-full   p-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50   "
-                              onClick={() => setIsOpen(!isOpen)}
-                              id="options-menu"
+                              className="flex justify-end w-full p-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+                              onClick={() => toggleIsOpen(member.id)}
+                              id={`options-menu-${member.id}`}
                               aria-haspopup="true"
-                              aria-expanded="true"
+                              aria-expanded={isOpenMap[member.id]}
                             >
-                              {accessLevel.label}
+                              {member.accessLevel}
                               <svg
                                 className="-mr-1 ml-2 h-5 w-5"
                                 xmlns="http://www.w3.org/2000/svg"
@@ -131,9 +184,9 @@ const Members = () => {
                             </button>
                           </span>
                         </div>
-                        {isOpen && (
+                        {isOpenMap[member.id] && (
                           <div
-                            className="origin-top-right w-auto absolute right-0 mt-2  rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10"
+                            className="origin-top-right w-auto absolute right-0 mt-2 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10"
                             style={{ zIndex: 50 }}
                           >
                             <div
@@ -145,7 +198,9 @@ const Members = () => {
                               {accessLevels.map((level) => (
                                 <div
                                   key={level.value}
-                                  onClick={() => handleAccessLevelChange(level)}
+                                  onClick={() =>
+                                    handleAccessLevelChange(level, member.id)
+                                  }
                                   className="flex flex-col px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 cursor-pointer"
                                   role="menuitem"
                                 >
@@ -167,7 +222,21 @@ const Members = () => {
           </div>
         </div>
       </div>
-      {isModalOpen && <MemberModal onClose={handleModalClose} />}
+      {isModalOpen && (
+        <MemberModal
+          onClose={handleModalClose}
+          setIsSent={setIsSent}
+          setMembers={setMembers}
+        />
+      )}
+      {isSent && (
+        <div className="absolute top-4 right-4 bg-green-200 text-green-800 px-3 py-2 rounded">
+          Invite sent!
+          <button className="ml-2" onClick={handleClose}>
+            X
+          </button>
+        </div>
+      )}
     </div>
   );
 };
