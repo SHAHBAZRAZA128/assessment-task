@@ -1,36 +1,44 @@
-import React, { ChangeEvent, useState } from "react";
-
+import React, { ChangeEvent, Dispatch, SetStateAction, useState } from "react";
+import emailjs from "emailjs-com";
+import axios from "axios";
+import { AccessLevel, Member } from "../../types/types";
 type ModalProps = {
   onClose: () => void;
-};
-type AccessLevel = {
-  value: "stationary" | "manager" | "viewer";
-  label: string;
-  details: string;
+  setIsSent: Dispatch<SetStateAction<boolean>>;
+  setMembers: React.Dispatch<React.SetStateAction<Member[]>>;
 };
 
 const accessLevels: AccessLevel[] = [
   {
-    value: "stationary",
-    label: "Stationary",
+    value: "Signatory",
+    label: "Signatory",
     details:
       "Has no right to sign transactions. Can change company settings and can invite new members.",
   },
   {
-    value: "manager",
+    value: "Manager",
     label: "Manager",
     details:
       "Has the right to sign transactions. Can change company settings and can invite new members.",
   },
   {
-    value: "viewer",
+    value: "Viewer",
     label: "Viewer",
     details: "Has read-only access.",
   },
 ];
-const MemberModal: React.FC<ModalProps> = ({ onClose }) => {
-  const [email, setEmail] = useState("");
 
+const serviceId = "service_28pr0bf";
+const templateId = "template_mukriuq";
+const userId = "xhWlWkxS0QzFgyl4h";
+
+const MemberModal: React.FC<ModalProps> = ({
+  onClose,
+  setIsSent,
+  setMembers,
+}) => {
+  const [email, setEmail] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [accessLevel, setAccessLevel] = useState<AccessLevel>(accessLevels[0]);
 
@@ -41,6 +49,52 @@ const MemberModal: React.FC<ModalProps> = ({ onClose }) => {
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(e.target.value);
+  };
+  const getUsernameFromEmail = (email: string) => {
+    const atIndex = email.indexOf("@");
+    if (atIndex !== -1) {
+      return email.slice(0, atIndex);
+    }
+    return null;
+  };
+  const sendInvite = () => {
+    const encodedEmail = encodeURIComponent(email);
+    const encodedAccessLevel = encodeURIComponent(accessLevel.value);
+    const username = getUsernameFromEmail(email);
+    setIsLoading(true);
+    const inviteLink = `http://localhost:3000/members`;
+    const url = `http://localhost:8000/members?email=${encodedEmail}&accessLevel=${encodedAccessLevel}&username=${username}`;
+    const templateParams = {
+      to_email: email,
+      from_name: "SHAHBAZ RAZA",
+      invite_link: inviteLink,
+      access_level: accessLevel.label,
+      access_details: accessLevel.details,
+    };
+
+    emailjs.send(serviceId, templateId, templateParams, userId).then(
+      (response) => {
+        console.log("SUCCESS!", response.status, response.text);
+        setIsSent(true);
+        onClose();
+        axios.post(url).then(
+          (response) => {
+            setMembers((prevMembers) => [...prevMembers, response.data]);
+            console.log("POST Request Success", response.data);
+            // Handle the response data if needed
+            setIsLoading(false);
+          },
+          (error) => {
+            console.error("POST Request Error", error);
+            setIsLoading(false);
+            // Handle errors if necessary
+          }
+        );
+      },
+      (error) => {
+        console.log("FAILED...", error);
+      }
+    );
   };
 
   return (
@@ -53,7 +107,7 @@ const MemberModal: React.FC<ModalProps> = ({ onClose }) => {
               onClick={onClose}
               className="text-gray-800 hover:text-black focus:outline-none"
             >
-              X 
+              X
             </button>
           </div>
           <div className="mt-4">
@@ -107,7 +161,7 @@ const MemberModal: React.FC<ModalProps> = ({ onClose }) => {
               </div>
               {isOpen && (
                 <div
-                  className="origin-top-right w-auto absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10"
+                  className="origin-top-right w-auto absolute right-0 mt-2  rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10"
                   style={{ zIndex: 50 }}
                 >
                   <div
@@ -142,9 +196,18 @@ const MemberModal: React.FC<ModalProps> = ({ onClose }) => {
           >
             Cancel
           </button>
-          <button className="bg-blue-700 hover:bg-blue-800 text-white font-bold py-2 px-4 rounded">
-            Send Invitation
-          </button>
+          {isLoading ? (
+            <div className="fixed top-0 left-0 w-full h-full flex items-center justify-center z-50">
+              <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          ) : (
+            <button
+              className="bg-blue-700 hover:bg-blue-800 text-white font-bold py-2 px-4 rounded"
+              onClick={sendInvite}
+            >
+              Send Invitation
+            </button>
+          )}
         </div>
       </div>
     </div>
