@@ -25,8 +25,44 @@ const Modal: React.FC<ModalProps> = ({ onClose, setDebts }) => {
     interestRate: 0,
     currency: "USD",
   });
-  console.log(formData);
 
+  const handleAddDebt = () => {
+    let hasError = false;
+    if (!formData.startDate) {
+      setError((prevError) => ({ ...prevError, startDateError: true }));
+      hasError = true;
+    } else {
+      setError((prevError) => ({ ...prevError, startDateError: false }));
+    }
+    if (!formData.maturityDate) {
+      setError((prevError) => ({ ...prevError, maturityDateError: true }));
+      hasError = true;
+    } else {
+      setError((prevError) => ({ ...prevError, maturityDateError: false }));
+    }
+    if (formData.initialAmount === 0) {
+      setError((prevError) => ({ ...prevError, initialAmountError: true }));
+      hasError = true;
+    } else {
+      setError((prevError) => ({ ...prevError, initialAmountError: false }));
+    }
+    if (hasError) {
+      return;
+    }
+
+    axios
+      .post("http://localhost:8000/debts", formData)
+      .then((response) => {
+        console.log("Debt added successfully: ", response.data);
+        onClose();
+        setDebts((prevDebts) => [...prevDebts, response.data]);
+      })
+      .catch((error) => {
+        console.error("Error adding debt: ", error);
+      });
+  };
+
+  
   const handleSelectChange = (e: ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
     if (value === "Other") {
@@ -74,41 +110,7 @@ const Modal: React.FC<ModalProps> = ({ onClose, setDebts }) => {
     }));
   };
 
-  const handleAddDebt = () => {
-    let hasError = false;
-    if (!formData.startDate) {
-      setError((prevError) => ({ ...prevError, startDateError: true }));
-      hasError = true;
-    } else {
-      setError((prevError) => ({ ...prevError, startDateError: false }));
-    }
-    if (!formData.maturityDate) {
-      setError((prevError) => ({ ...prevError, maturityDateError: true }));
-      hasError = true;
-    } else {
-      setError((prevError) => ({ ...prevError, maturityDateError: false }));
-    }
-    if (formData.initialAmount === 0) {
-      setError((prevError) => ({ ...prevError, initialAmountError: true }));
-      hasError = true;
-    } else {
-      setError((prevError) => ({ ...prevError, initialAmountError: false }));
-    }
-    if (hasError) {
-      return;
-    }
-
-    axios
-      .post("http://localhost:8000/debts", formData)
-      .then((response) => {
-        console.log("Debt added successfully: ", response.data);
-        onClose();
-        setDebts((prevDebts) => [...prevDebts, response.data]);
-      })
-      .catch((error) => {
-        console.error("Error adding debt: ", error);
-      });
-  };
+  
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     let value = parseFloat(e.target.value);
